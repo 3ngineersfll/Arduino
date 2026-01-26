@@ -1,0 +1,199 @@
+# Bird Feeder Detection System Configuration
+# Copy this file to config.yaml and update with your settings
+
+# ============================================
+# CAMERA SETTINGS
+# ============================================
+camera:
+  # Resolution [width, height] - higher = better quality but slower
+  resolution: [1920, 1080]
+
+  # Frame rate for video recording
+  framerate: 30
+
+  # Camera rotation (0, 90, 180, 270)
+  rotation: 0
+
+  # Flip image horizontally/vertically
+  horizontal_flip: false
+  vertical_flip: false
+
+  # Enable preview window (requires display)
+  enable_preview: false
+
+  # USB camera device index (0 = default)
+  device_index: 0
+
+# ============================================
+# DETECTION SETTINGS
+# ============================================
+detection:
+  # Time between detection checks (seconds)
+  interval_seconds: 0.5
+
+  # Cooldown between alerts (seconds) - prevents spam
+  cooldown_seconds: 30
+
+  # Enable ML-based bird detection
+  use_ml_detection: true
+
+  # Enable motion detection (faster, used as pre-filter)
+  use_motion_detection: true
+
+  # Minimum confidence for bird detection (0.0 - 1.0)
+  confidence_threshold: 0.5
+
+  # Motion detection sensitivity (lower = more sensitive)
+  motion_threshold: 25
+
+  # Minimum pixel area for motion detection
+  min_motion_area: 500
+
+  # Path to object detection model
+  model_path: /home/pi/bird_feeder/models/detect.tflite
+
+# ============================================
+# BIRD IDENTIFICATION SETTINGS
+# ============================================
+identification:
+  # Path to bird classification model
+  model_path: /home/pi/bird_feeder/models/bird_classifier.tflite
+
+  # Path to species labels
+  labels_path: /home/pi/bird_feeder/models/bird_labels.txt
+
+  # Custom model download URL (optional)
+  model_download_url: ""
+
+# ============================================
+# VIDEO RECORDING SETTINGS
+# ============================================
+video:
+  # Duration to record when bird detected (seconds)
+  duration_seconds: 10
+
+  # Video format
+  format: mp4
+
+  # Video quality (low, medium, high)
+  quality: high
+
+# ============================================
+# STORAGE SETTINGS
+# ============================================
+storage:
+  # Directory for captured photos
+  capture_path: /home/pi/bird_feeder/data/captures
+
+  # Directory for recorded videos
+  video_path: /home/pi/bird_feeder/data/videos
+
+  # Maximum storage usage (GB)
+  max_storage_gb: 10
+
+  # Automatically delete old files when storage full
+  auto_cleanup: true
+
+  # Keep files for this many days
+  retention_days: 30
+
+# ============================================
+# NOTIFICATION SETTINGS
+# ============================================
+notifications:
+  # Include photo in notifications (when supported)
+  send_photo: true
+
+  # Enable push notifications
+  enable_push: false
+
+  # Base URL for serving images (for MMS)
+  # Leave empty if not using public image serving
+  image_base_url: ""
+
+  # ------------------------------------
+  # TWILIO SMS CONFIGURATION
+  # Sign up at: https://www.twilio.com
+  # ------------------------------------
+  twilio:
+    enabled: false
+    # Your Twilio Account SID
+    account_sid: "your_account_sid_here"
+    # Your Twilio Auth Token
+    auth_token: "your_auth_token_here"
+    # Your Twilio phone number (format: +1234567890)
+    from_number: "+1234567890"
+    # Your personal phone number to receive alerts
+    to_number: "+0987654321"
+
+  # ------------------------------------
+  # PUSHOVER CONFIGURATION
+  # Sign up at: https://pushover.net
+  # ------------------------------------
+  pushover:
+    enabled: false
+    # Your Pushover application token
+    app_token: "your_app_token_here"
+    # Your Pushover user key
+    user_key: "your_user_key_here"
+
+  # ------------------------------------
+  # PUSHBULLET CONFIGURATION
+  # Sign up at: https://www.pushbullet.com
+  # ------------------------------------
+  pushbullet:
+    enabled: false
+    # Your Pushbullet access token
+    access_token: "your_access_token_here"
+
+  # ------------------------------------
+  # IFTTT CONFIGURATION
+  # Sign up at: https://ifttt.com
+  # Create a Webhook applet
+  # ------------------------------------
+  ifttt:
+    enabled: false
+    # Your IFTTT webhook key
+    webhook_key: "your_webhook_key_here"
+    # Event name (use in your IFTTT applet)
+    event_name: "bird_detected"
+
+  # ------------------------------------
+  # EMAIL CONFIGURATION
+  # ------------------------------------
+  email:
+    enabled: false
+    # SMTP server (e.g., smtp.gmail.com)
+    smtp_server: "smtp.gmail.com"
+    # SMTP port (usually 587 for TLS)
+    smtp_port: 587
+    # Email username
+    username: "your_email@gmail.com"
+    # Email password or app-specific password
+    password: "your_app_password_here"
+    # Email address to receive alerts
+    to_address: "recipient@example.com"
+
+# ============================================
+# WEB INTERFACE SETTINGS (Optional)
+# ============================================
+web:
+  # Enable web interface for viewing captures
+  enabled: false
+  # Port number
+  port: 8080
+  # Host (0.0.0.0 = all interfaces)
+  host: "0.0.0.0"
+
+# ============================================
+# LOGGING SETTINGS
+# ============================================
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR)
+  level: INFO
+  # Log file path
+  file: /home/pi/bird_feeder/logs/bird_feeder.log
+  # Maximum log file size (MB)
+  max_size_mb: 10
+  # Number of backup log files to keep
+  backup_count: 5

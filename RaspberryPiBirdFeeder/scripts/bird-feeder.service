@@ -1,0 +1,28 @@
+[Unit]
+Description=Raspberry Pi Bird Feeder Detection System
+Documentation=https://github.com/your-repo/bird-feeder
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/bird_feeder
+ExecStart=/home/pi/bird_feeder/venv/bin/python /home/pi/bird_feeder/src/bird_feeder.py -c /home/pi/bird_feeder/config/config.yaml
+Restart=always
+RestartSec=10
+
+# Environment variables (optional - can also use config file)
+# Environment=BIRD_FEEDER_TWILIO_SID=your_sid
+# Environment=BIRD_FEEDER_TWILIO_TOKEN=your_token
+
+# Logging
+StandardOutput=append:/home/pi/bird_feeder/logs/bird_feeder_stdout.log
+StandardError=append:/home/pi/bird_feeder/logs/bird_feeder_stderr.log
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target
