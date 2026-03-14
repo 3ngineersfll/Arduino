@@ -30,8 +30,8 @@
 #define TWILIO_FROM_NUMBER  "+1XXXXXXXXXX"  // Your Twilio number
 #define SMS_TO_NUMBER       "+1XXXXXXXXXX"  // Your phone number
 
-// ─── Hardware ────────────────────────────────────────────────────────────────
-#define LED_OK_PIN      LED_BUILTIN   // On = soil is moist
-#define LED_ALERT_PIN   2             // Connect external LED; on = dry/alert
+// ─── LED Matrix scroll speed ──────────────────────────────────────────────────
+// Milliseconds per pixel shift. Lower = faster scroll. Range: 50–200.
+#define SCROLL_SPEED_MS   80
 
 #endif // CONFIG_H
