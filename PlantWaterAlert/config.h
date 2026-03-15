@@ -33,6 +33,16 @@
 #define TWILIO_FROM_NUMBER  "+1XXXXXXXXXX"  // Your Twilio number
 #define SMS_TO_NUMBER       "+1XXXXXXXXXX"  // Your phone number
 
+// ─── Govee LAN Control ────────────────────────────────────────────────────────
+// Enable in Govee Home App: open device → ⚙ Settings → LAN Control (toggle ON)
+// GOVEE_DEVICE_IP: set to the device IP (e.g. "192.168.1.50") to skip auto-scan,
+//                  or leave as "" to auto-scan on every boot.
+#define GOVEE_DEVICE_IP   ""          // "" = auto-scan, or e.g. "192.168.1.50"
+#define GOVEE_ALERT_R     255         // Alert color: orange-red
+#define GOVEE_ALERT_G     80
+#define GOVEE_ALERT_B     0
+#define GOVEE_BRIGHTNESS  80          // Alert brightness % (1–100)
+
 // ─── LED Matrix scroll speed ──────────────────────────────────────────────────
 // Milliseconds per pixel shift. Lower = faster scroll. Range: 50–200.
 #define SCROLL_SPEED_MS   80

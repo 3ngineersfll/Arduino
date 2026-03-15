@@ -34,6 +34,10 @@
  *   "SMS ERR"    — SMS failed
  *   "SENT!"      — at least one alert delivered
  *   "BOTH ERR"   — both email and SMS failed
+ *   "GOVEE..."   — scanning for Govee device / sending command
+ *   "GOVEE ON"   — Govee light turned on (dry alert)
+ *   "GOVEE OK"   — Govee device found or IP set
+ *   "NO GOVEE"   — scan found no device (alerts still sent)
  */
 
 #include <WiFiS3.h>
@@ -42,6 +46,7 @@
 #include <Arduino_LED_Matrix.h>   // Built-in for Uno R4 WiFi
 #include <ArduinoGraphics.h>      // Required for text rendering on the matrix
 #include "config.h"
+#include "Govee.h"
 
 // ─── LED Matrix ───────────────────────────────────────────────────────────────
 ArduinoLEDMatrix matrix;
@@ -62,8 +67,9 @@ static const uint32_t ICON_EXCLAIM[3] = {
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
-static unsigned long lastCheckTime = 0;
-static unsigned long lastAlertTime = 0;
+static unsigned long lastCheckTime  = 0;
+static unsigned long lastAlertTime  = 0;
+static bool          goveeAlertOn   = false;  // true while Govee is lit for a dry alert
 
 // ─── Prototypes ───────────────────────────────────────────────────────────────
 void    connectWiFi();
@@ -90,6 +96,18 @@ void setup() {
   Serial.println(DRY_THRESHOLD);
 
   connectWiFi();
+
+  // ── Govee LAN init ──────────────────────────────────────────────────────────
+  if (WiFi.status() == WL_CONNECTED) {
+    goveeInit();
+    if (strlen(GOVEE_DEVICE_IP) > 0) {
+      goveeSetIP(GOVEE_DEVICE_IP);
+      showScroll("GOVEE OK", 80);
+    } else {
+      showScroll("GOVEE...", 80);
+      showScroll(goveeScan() ? "GOVEE OK" : "NO GOVEE", 80);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,6 +115,14 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println(F("WiFi lost — reconnecting..."));
     connectWiFi();
+    // Re-init Govee UDP socket after reconnect
+    if (WiFi.status() == WL_CONNECTED) {
+      goveeInit();
+      if (!goveeIsReady()) {
+        showScroll("GOVEE...", 80);
+        showScroll(goveeScan() ? "GOVEE OK" : "NO GOVEE", 80);
+      }
+    }
   }
 
   unsigned long now = millis();
@@ -113,7 +139,12 @@ void loop() {
   Serial.println(isDry ? F("DRY!") : F("OK"));
 
   if (!isDry) {
-    // Show droplet icon and "OK"
+    // If the Govee was on for a dry alert, turn it off now that soil is moist
+    if (goveeAlertOn) {
+      goveeOff();
+      goveeAlertOn = false;
+      Serial.println(F("Govee alert light OFF — soil is moist"));
+    }
     showIcon(ICON_DROPLET);
     delay(2000);
     showScroll("OK", 80);
@@ -124,6 +155,17 @@ void loop() {
   showIcon(ICON_EXCLAIM);
   delay(1500);
   showScroll("DRY!", 80);
+
+  // Turn on Govee alert light the first time we detect dry (stays on until watered)
+  if (!goveeAlertOn && goveeIsReady()) {
+    showScroll("GOVEE...", 80);
+    goveeOn();
+    goveeColor(GOVEE_ALERT_R, GOVEE_ALERT_G, GOVEE_ALERT_B);
+    goveeBrightness(GOVEE_BRIGHTNESS);
+    goveeAlertOn = true;
+    showScroll("GOVEE ON", 80);
+    Serial.println(F("Govee alert light ON"));
+  }
 
   // Respect cooldown to avoid spam
   if (lastAlertTime != 0 && (now - lastAlertTime < ALERT_COOLDOWN_MS)) {
