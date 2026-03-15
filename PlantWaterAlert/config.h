@@ -5,11 +5,14 @@
 #define WIFI_SSID       "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD   "YOUR_WIFI_PASSWORD"
 
-// ─── Sensor (HiLetgo LM393 Resistive Soil Moisture) ─────────────────────────
-// Wiring:  VCC → 3.3V or 5V,  GND → GND,  AO → A0  (use analog for precision)
+// ─── Sensor (Icstation HD-38 Resistive Soil Hygrometer) ─────────────────────
+// Module board: HD-38 (LM393 comparator + blue trim-pot for DO threshold)
+// Wiring:  VCC → 5V,  GND → GND,  AO → A0  (analog; ignore DO pin)
+// Note: power from 5V, not 3.3V — the probe needs full rail for stable readings.
 // Dry soil = HIGH ADC (~700-1023), Wet soil = LOW ADC (~200-500).
 // To calibrate: open Serial Monitor, push probe in dry soil → note value (DRY),
 //               then in soaked soil → note value (WET). Set threshold between them.
+// The blue trim-pot on the board only affects the DO pin — ignore it for AO use.
 #define MOISTURE_SENSOR_PIN     A0
 #define DRY_THRESHOLD           650   // ADC value above this = LOW WATER alert
 #define CHECK_INTERVAL_MS       30000UL   // Check every 30 seconds

@@ -1,7 +1,7 @@
 /*
  * PlantWaterAlert.ino
  *
- * Monitors soil moisture with a HiLetgo LM393 resistive sensor and sends
+ * Monitors soil moisture with an Icstation HD-38 resistive hygrometer and sends
  * an email (via SendGrid) and SMS (via Twilio) when water is low.
  * Status messages are displayed on the Arduino Uno R4 WiFi 12×8 LED matrix.
  *
@@ -13,11 +13,11 @@
  *   - ArduinoHttpClient
  *   - ArduinoJson
  *
- * Sensor wiring (LM393):
- *   VCC  →  3.3 V or 5 V
+ * Sensor wiring (Icstation HD-38):
+ *   VCC  →  5 V   (use 5 V, not 3.3 V, for stable probe readings)
  *   GND  →  GND
- *   AO   →  A0   (analog — more precise than digital DO pin)
- *   DO   →  not used
+ *   AO   →  A0    (analog output — more precise than the DO pin)
+ *   DO   →  not used  (DO threshold set by blue trim-pot; irrelevant here)
  *
  * LED matrix status messages:
  *   "PLANT MON"  — startup banner
