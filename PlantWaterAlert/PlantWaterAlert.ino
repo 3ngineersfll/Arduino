@@ -9,7 +9,6 @@
  *
  * Required libraries (install via Arduino Library Manager):
  *   - Arduino_LED_Matrix   (built-in for Uno R4 WiFi)
- *   - ArduinoGraphics      (dependency of Arduino_LED_Matrix)
  *   - ArduinoHttpClient
  *   - ArduinoJson
  *
@@ -44,7 +43,6 @@
 #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 #include <Arduino_LED_Matrix.h>   // Built-in for Uno R4 WiFi
-#include <ArduinoGraphics.h>      // Required for text rendering on the matrix
 #include "config.h"
 #include "Govee.h"
 
@@ -197,18 +195,128 @@ void loop() {
 }
 
 // ─── LED Matrix helpers ───────────────────────────────────────────────────────
+//
+// Self-contained 3×5 bitmap font + manual scrolling via loadFrame().
+// No ArduinoGraphics dependency — works with all Arduino_LED_Matrix versions.
+//
+// Font format: each character = 3 bytes (one per pixel column, left to right).
+// Within each byte: bit 4 = top row, bit 0 = bottom row (5 rows used).
+// Characters are indexed as (ASCII - 0x20), covering 0x20 (' ') through 0x5A ('Z').
 
-// Scroll a text message across the 12×8 matrix.
-// speedMs: milliseconds per pixel shift (lower = faster).
+static const uint8_t FONT3x5[][3] = {
+  {0x00,0x00,0x00}, // ' ' 0x20
+  {0x00,0x1D,0x00}, // '!' 0x21
+  {0x00,0x00,0x00}, // '"' 0x22
+  {0x00,0x00,0x00}, // '#' 0x23
+  {0x00,0x00,0x00}, // '$' 0x24
+  {0x00,0x00,0x00}, // '%' 0x25
+  {0x00,0x00,0x00}, // '&' 0x26
+  {0x00,0x00,0x00}, // ''' 0x27
+  {0x00,0x00,0x00}, // '(' 0x28
+  {0x00,0x00,0x00}, // ')' 0x29
+  {0x00,0x00,0x00}, // '*' 0x2A
+  {0x00,0x00,0x00}, // '+' 0x2B
+  {0x00,0x00,0x00}, // ',' 0x2C
+  {0x00,0x04,0x00}, // '-' 0x2D
+  {0x00,0x01,0x00}, // '.' 0x2E
+  {0x00,0x00,0x00}, // '/' 0x2F
+  {0x0E,0x11,0x0E}, // '0' 0x30
+  {0x09,0x1F,0x01}, // '1' 0x31
+  {0x13,0x15,0x09}, // '2' 0x32
+  {0x11,0x15,0x1F}, // '3' 0x33
+  {0x1C,0x04,0x1F}, // '4' 0x34
+  {0x1D,0x15,0x17}, // '5' 0x35
+  {0x1F,0x15,0x17}, // '6' 0x36
+  {0x10,0x17,0x18}, // '7' 0x37
+  {0x1F,0x15,0x1F}, // '8' 0x38
+  {0x1D,0x15,0x1F}, // '9' 0x39
+  {0x00,0x00,0x00}, // ':' 0x3A
+  {0x00,0x00,0x00}, // ';' 0x3B
+  {0x00,0x00,0x00}, // '<' 0x3C
+  {0x00,0x00,0x00}, // '=' 0x3D
+  {0x00,0x00,0x00}, // '>' 0x3E
+  {0x00,0x00,0x00}, // '?' 0x3F
+  {0x00,0x00,0x00}, // '@' 0x40
+  {0x0F,0x14,0x0F}, // 'A' 0x41
+  {0x1F,0x15,0x0A}, // 'B' 0x42
+  {0x1F,0x11,0x11}, // 'C' 0x43
+  {0x1F,0x11,0x0E}, // 'D' 0x44
+  {0x1F,0x15,0x11}, // 'E' 0x45
+  {0x1F,0x14,0x10}, // 'F' 0x46
+  {0x1F,0x11,0x17}, // 'G' 0x47
+  {0x1F,0x04,0x1F}, // 'H' 0x48
+  {0x11,0x1F,0x11}, // 'I' 0x49
+  {0x03,0x11,0x1E}, // 'J' 0x4A
+  {0x1F,0x04,0x1B}, // 'K' 0x4B
+  {0x1F,0x01,0x01}, // 'L' 0x4C
+  {0x1F,0x08,0x1F}, // 'M' 0x4D
+  {0x1F,0x0C,0x1F}, // 'N' 0x4E
+  {0x0E,0x11,0x0E}, // 'O' 0x4F
+  {0x1F,0x14,0x08}, // 'P' 0x50
+  {0x0E,0x13,0x0F}, // 'Q' 0x51
+  {0x1F,0x16,0x09}, // 'R' 0x52
+  {0x1D,0x15,0x17}, // 'S' 0x53
+  {0x10,0x1F,0x10}, // 'T' 0x54
+  {0x1F,0x01,0x1F}, // 'U' 0x55
+  {0x1E,0x03,0x1E}, // 'V' 0x56
+  {0x1F,0x02,0x1F}, // 'W' 0x57
+  {0x1B,0x0E,0x1B}, // 'X' 0x58
+  {0x18,0x0F,0x18}, // 'Y' 0x59
+  {0x13,0x15,0x19}, // 'Z' 0x5A
+};
+
+// Pack a pixel on/off into the uint32_t[3] frame format used by loadFrame().
+// Pixel (row, col): row 0..7 top to bottom, col 0..11 left to right.
+// Bit layout: pixel index = row*12+col; bit position in 96-bit stream = 95-index;
+// frame[0]=bits95-64, frame[1]=bits63-32, frame[2]=bits31-0.
+static void setPixel(uint32_t frame[3], int row, int col) {
+  int idx  = row * 12 + col;
+  int fi   = idx / 32;
+  int bi   = 31 - (idx % 32);
+  frame[fi] |= (1UL << bi);
+}
+
+// Scroll a text message across the 12×8 matrix using only loadFrame().
+// speedMs: milliseconds per pixel column shift (lower = faster scroll).
+// Characters are 3px wide + 1px gap = 4px per character.
+// Text is vertically centered in rows 1–5 of the 8-row display.
 void showScroll(const char* msg, uint8_t speedMs) {
-  matrix.beginDraw();
-    matrix.stroke(0xFFFFFFFF);
-    matrix.textScrollSpeed(speedMs);
-    matrix.textFont(Font_4x6);
-    matrix.beginText(0, 1, 0xFFFFFF);
-      matrix.println(msg);
-    matrix.endText(SCROLL_LEFT);
-  matrix.endDraw();
+  const int CHAR_W  = 4;   // glyph width (3) + gap (1)
+  const int GLYPH_W = 3;
+  const int GLYPH_H = 5;
+  const int ROW_OFF = 1;   // top padding so glyphs sit in rows 1-5
+
+  int msgLen      = (int)strlen(msg);
+  int totalFrames = 12 + msgLen * CHAR_W; // 12-col blank lead-in, then text scrolls out
+
+  uint32_t frame[3];
+
+  for (int offset = 0; offset < totalFrames; offset++) {
+    frame[0] = frame[1] = frame[2] = 0;
+
+    for (int col = 0; col < 12; col++) {
+      int textCol  = (offset + col) - 12; // position in text pixel stream
+      if (textCol < 0) continue;
+
+      int charIdx  = textCol / CHAR_W;
+      int glyphCol = textCol % CHAR_W;
+      if (charIdx >= msgLen || glyphCol >= GLYPH_W) continue;
+
+      char c = msg[charIdx];
+      if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A'); // fold to uppercase
+      int fi = (uint8_t)c - 0x20;
+      if (fi < 0 || fi >= (int)(sizeof(FONT3x5) / 3)) continue;
+
+      uint8_t colData = FONT3x5[fi][glyphCol];
+      for (int row = 0; row < GLYPH_H; row++) {
+        if ((colData >> (GLYPH_H - 1 - row)) & 1)
+          setPixel(frame, ROW_OFF + row, col);
+      }
+    }
+
+    matrix.loadFrame(frame);
+    delay(speedMs);
+  }
 
   Serial.print(F("[LED] "));
   Serial.println(msg);
