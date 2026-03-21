@@ -2,7 +2,7 @@
  * PlantWaterAlert.ino
  *
  * Monitors soil moisture with an Icstation HD-38 resistive hygrometer and sends
- * an email (via SendGrid) and SMS (via Twilio) when water is low.
+ * a WhatsApp message (via CallMeBot free API) when water is low.
  * Status messages are displayed on the Arduino Uno R4 WiFi 12×8 LED matrix.
  *
  * Target board : Arduino Uno R4 WiFi
@@ -10,7 +10,6 @@
  * Required libraries (install via Arduino Library Manager):
  *   - Arduino_LED_Matrix   (built-in for Uno R4 WiFi)
  *   - ArduinoHttpClient
- *   - ArduinoJson
  *
  * Sensor wiring (Icstation HD-38):
  *   VCC  →  5 V   (use 5 V, not 3.3 V, for stable probe readings)
@@ -25,14 +24,10 @@
  *   "NO WIFI"    — connection failed
  *   "OK"         — soil moisture is fine   (+ droplet icon)
  *   "DRY!"       — soil is dry, alert sent (+ warning icon)
- *   "EMAIL..."   — sending email via SendGrid
- *   "EMAIL OK"   — email sent successfully
- *   "EMAIL ERR"  — email failed
- *   "SMS..."     — sending SMS via Twilio
- *   "SMS OK"     — SMS sent successfully
- *   "SMS ERR"    — SMS failed
- *   "SENT!"      — at least one alert delivered
- *   "BOTH ERR"   — both email and SMS failed
+ *   "WAPP..."    — sending WhatsApp via CallMeBot
+ *   "WAPP OK"    — WhatsApp sent successfully
+ *   "WAPP ERR"   — WhatsApp send failed
+ *   "SENT!"      — alert delivered
  *   "GOVEE..."   — scanning for Govee device / sending command
  *   "GOVEE ON"   — Govee light turned on (dry alert)
  *   "GOVEE OK"   — Govee device found or IP set
@@ -41,7 +36,6 @@
 
 #include <WiFiS3.h>
 #include <ArduinoHttpClient.h>
-#include <ArduinoJson.h>
 #include <Arduino_LED_Matrix.h>   // Built-in for Uno R4 WiFi
 #include "config.h"
 #include "Govee.h"
@@ -72,11 +66,9 @@ static bool          goveeAlertOn   = false;  // true while Govee is lit for a d
 // ─── Prototypes ───────────────────────────────────────────────────────────────
 void    connectWiFi();
 int     readMoisture();
-bool    sendEmail(int moistureValue);
-bool    sendSMS(int moistureValue);
+bool    sendWhatsApp(int moistureValue);
 void    showScroll(const char* msg, uint8_t speedMs = 80);
 void    showIcon(const uint32_t frame[3]);
-String  base64Encode(const String& input);
 String  urlencode(const String& str);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,26 +163,19 @@ void loop() {
     return;
   }
 
-  // ── Send email ──────────────────────────────────────────────────────────────
-  showScroll("EMAIL...", 80);
-  Serial.println(F("Sending email..."));
-  bool emailOk = sendEmail(moisture);
-  showScroll(emailOk ? "EMAIL OK" : "EMAIL ERR", 80);
-
-  // ── Send SMS ────────────────────────────────────────────────────────────────
-  showScroll("SMS...", 80);
-  Serial.println(F("Sending SMS..."));
-  bool smsOk = sendSMS(moisture);
-  showScroll(smsOk ? "SMS OK" : "SMS ERR", 80);
+  // ── Send WhatsApp via CallMeBot ─────────────────────────────────────────────
+  showScroll("WAPP...", 80);
+  Serial.println(F("Sending WhatsApp..."));
+  bool wappOk = sendWhatsApp(moisture);
+  showScroll(wappOk ? "WAPP OK" : "WAPP ERR", 80);
 
   // ── Result ──────────────────────────────────────────────────────────────────
-  if (emailOk || smsOk) {
+  if (wappOk) {
     lastAlertTime = now;
     showScroll("SENT!", 70);
     Serial.println(F("Alert sent. Next alert in 1 hour."));
   } else {
-    showScroll("BOTH ERR", 80);
-    Serial.println(F("Both alerts failed — will retry next cycle."));
+    Serial.println(F("WhatsApp failed — will retry next cycle."));
   }
 }
 
@@ -363,91 +348,25 @@ int readMoisture() {
   return (int)(sum / 10);
 }
 
-// ─── Email via SendGrid REST API ─────────────────────────────────────────────
-bool sendEmail(int moistureValue) {
-  WiFiSSLClient sslClient;
-  HttpClient http(sslClient, "api.sendgrid.com", 443);
-
-  StaticJsonDocument<512> doc;
-  JsonArray personalizations = doc.createNestedArray("personalizations");
-  JsonObject p   = personalizations.createNestedObject();
-  JsonArray  to  = p.createNestedArray("to");
-  JsonObject toObj = to.createNestedObject();
-  toObj["email"] = EMAIL_TO;
-
-  JsonObject from = doc.createNestedObject("from");
-  from["email"] = EMAIL_FROM;
-  from["name"]  = EMAIL_FROM_NAME;
-
-  doc["subject"] = EMAIL_SUBJECT;
-
-  char body[200];
-  snprintf(body, sizeof(body),
-    "Your plant needs water!\n\n"
-    "Soil moisture reading: %d / 1023\n"
-    "(Dry threshold: %d)\n\n"
-    "Please water your plant soon.",
-    moistureValue, DRY_THRESHOLD);
-
-  JsonArray  content  = doc.createNestedArray("content");
-  JsonObject textPart = content.createNestedObject();
-  textPart["type"]  = "text/plain";
-  textPart["value"] = body;
-
-  String payload;
-  serializeJson(doc, payload);
-
-  http.beginRequest();
-  http.post("/v3/mail/send");
-  http.sendHeader("Authorization", String("Bearer ") + SENDGRID_API_KEY);
-  http.sendHeader("Content-Type",  "application/json");
-  http.sendHeader("Content-Length", payload.length());
-  http.beginBody();
-  http.print(payload);
-  http.endRequest();
-
-  int statusCode = http.responseStatusCode();
-  Serial.print(F("SendGrid: "));
-  Serial.println(statusCode);
-  if (statusCode < 200 || statusCode > 299) {
-    Serial.println(http.responseBody());
-    return false;
-  }
-  return true;
-}
-
-// ─── SMS via Twilio REST API ──────────────────────────────────────────────────
-bool sendSMS(int moistureValue) {
-  WiFiSSLClient sslClient;
-  HttpClient http(sslClient, "api.twilio.com", 443);
-
-  String credentials = base64Encode(
-    String(TWILIO_ACCOUNT_SID) + ":" + String(TWILIO_AUTH_TOKEN));
-
-  char msgBuf[140];
+// ─── WhatsApp via CallMeBot free API ─────────────────────────────────────────
+// GET https://api.callmebot.com/whatsapp.php?phone=PHONE&text=TEXT&apikey=KEY
+// Reference: https://www.callmebot.com/blog/free-api-whatsapp-messages/
+bool sendWhatsApp(int moistureValue) {
+  char msgBuf[160];
   snprintf(msgBuf, sizeof(msgBuf),
     "Plant alert! Soil moisture ADC: %d (dry > %d). Time to water!",
     moistureValue, DRY_THRESHOLD);
 
-  String formBody = "To="   + urlencode(SMS_TO_NUMBER)
-                  + "&From=" + urlencode(TWILIO_FROM_NUMBER)
-                  + "&Body=" + urlencode(String(msgBuf));
+  String path = "/whatsapp.php?phone=" + urlencode(String(CALLMEBOT_PHONE))
+              + "&text="  + urlencode(String(msgBuf))
+              + "&apikey=" + urlencode(String(CALLMEBOT_APIKEY));
 
-  String path = "/2010-04-01/Accounts/";
-  path += TWILIO_ACCOUNT_SID;
-  path += "/Messages.json";
-
-  http.beginRequest();
-  http.post(path);
-  http.sendHeader("Authorization", String("Basic ") + credentials);
-  http.sendHeader("Content-Type",  "application/x-www-form-urlencoded");
-  http.sendHeader("Content-Length", formBody.length());
-  http.beginBody();
-  http.print(formBody);
-  http.endRequest();
+  WiFiSSLClient sslClient;
+  HttpClient http(sslClient, "api.callmebot.com", 443);
+  http.get(path);
 
   int statusCode = http.responseStatusCode();
-  Serial.print(F("Twilio: "));
+  Serial.print(F("CallMeBot: "));
   Serial.println(statusCode);
   if (statusCode < 200 || statusCode > 299) {
     Serial.println(http.responseBody());
@@ -472,32 +391,3 @@ String urlencode(const String& str) {
   return encoded;
 }
 
-String base64Encode(const String& input) {
-  static const char table[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  String output;
-  int i = 0;
-  unsigned char c3[3], c4[4];
-  unsigned int len = input.length();
-
-  while (len--) {
-    c3[i++] = (unsigned char)input[input.length() - len - 1];
-    if (i == 3) {
-      c4[0] = (c3[0] & 0xfc) >> 2;
-      c4[1] = ((c3[0] & 0x03) << 4) | ((c3[1] & 0xf0) >> 4);
-      c4[2] = ((c3[1] & 0x0f) << 2) | ((c3[2] & 0xc0) >> 6);
-      c4[3] = c3[2] & 0x3f;
-      for (i = 0; i < 4; i++) output += table[c4[i]];
-      i = 0;
-    }
-  }
-  if (i) {
-    for (int j = i; j < 3; j++) c3[j] = 0;
-    c4[0] = (c3[0] & 0xfc) >> 2;
-    c4[1] = ((c3[0] & 0x03) << 4) | ((c3[1] & 0xf0) >> 4);
-    c4[2] = ((c3[1] & 0x0f) << 2) | ((c3[2] & 0xc0) >> 6);
-    for (int j = 0; j < i + 1; j++) output += table[c4[j]];
-    while (i++ < 3) output += '=';
-  }
-  return output;
-}

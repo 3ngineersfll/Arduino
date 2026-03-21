@@ -18,20 +18,15 @@
 #define CHECK_INTERVAL_MS       30000UL   // Check every 30 seconds
 #define ALERT_COOLDOWN_MS       3600000UL // Re-alert at most once per hour
 
-// ─── SendGrid (Email) ─────────────────────────────────────────────────────────
-// Sign up free at https://sendgrid.com  → Settings → API Keys
-#define SENDGRID_API_KEY    "SG.YOUR_SENDGRID_API_KEY"
-#define EMAIL_FROM          "alerts@yourdomain.com"
-#define EMAIL_FROM_NAME     "Plant Monitor"
-#define EMAIL_TO            "you@example.com"
-#define EMAIL_SUBJECT       "Plant Needs Water!"
-
-// ─── Twilio (SMS) ─────────────────────────────────────────────────────────────
-// Sign up free at https://twilio.com → Console Dashboard
-#define TWILIO_ACCOUNT_SID  "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-#define TWILIO_AUTH_TOKEN   "your_auth_token"
-#define TWILIO_FROM_NUMBER  "+1XXXXXXXXXX"  // Your Twilio number
-#define SMS_TO_NUMBER       "+1XXXXXXXXXX"  // Your phone number
+// ─── CallMeBot (WhatsApp) ────────────────────────────────────────────────────
+// To get your free API key:
+//   1. Add +34 644 60 49 86 to your WhatsApp contacts (name it "CallMeBot")
+//   2. Send this message to that contact:
+//        I allow callmebot to send me messages
+//   3. CallMeBot will reply with your API key — copy it below.
+// Reference: https://www.callmebot.com/blog/free-api-whatsapp-messages/
+#define CALLMEBOT_PHONE     "+1XXXXXXXXXX"   // Your number in international format (e.g. +14155552671)
+#define CALLMEBOT_APIKEY    "YOUR_APIKEY"    // API key received from CallMeBot via WhatsApp
 
 // ─── Govee LAN Control ────────────────────────────────────────────────────────
 // Enable in Govee Home App: open device → ⚙ Settings → LAN Control (toggle ON)
